@@ -27,11 +27,12 @@ jobs:
       - name: Check if commit includes version bump
         id: bump
         run: |
-          echo target=$(git rev-list --max-count=1 --no-commit-header --format=%B HEAD | awk -F":" '{print $1}' | tr -d "\n\r") >> "$GITHUB_OUTPUT"
+          echo target=$(git rev-list --max-count=1 --no-commit-header --format=%B HEAD | awk -F":" '{print $1}' | tr -d "\n\r" | grep -e "major|minor|patch") >> "$GITHUB_OUTPUT"
       - name: Get next version
         id: version
         run: |
-          echo next=$(git-semver -prefix v -target ${{ steps.bump.outputs.target}}) >> "$GITHUB_OUTPUT"
+          export TARGET=${${{ steps.bump.outputs.target }}:-dev}
+          echo next=$(git-semver -prefix v -target $TARGET) >> "$GITHUB_OUTPUT"
       - uses: actions/github-script@v7
         with:
           script: |
