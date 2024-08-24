@@ -3,7 +3,7 @@ name: Tag new version
 on:
   push:
     branches:
-      - "dev"
+      - "main"
 jobs:
   build:
     permissions:
