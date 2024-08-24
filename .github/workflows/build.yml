@@ -3,7 +3,7 @@ name: Build versioned container
 on:
   push:
     tags:
-      - "v*"
+      - "v.*"
 
 jobs:
   build:
