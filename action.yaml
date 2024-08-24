@@ -1,0 +1,32 @@
+---
+name: Vault Action
+author: Konstantinos Dichalas
+description: |
+  An action that helps you inderact with a vault instance.
+  It can Authenticate using Github OIDC, read Secrets
+  and even expose the Vault Token for later use.
+
+inputs:
+  vault_url:
+    description: The URL of the Vault instance
+    required: true
+  vault_jwt_claim:
+    description: The JWT claim to use for authentication
+    required: false
+    default: github
+  vault_ca_certificate:
+    description: The CA certificate to use for TLS verification
+    required: false
+    default: ""
+  vault_output_token:
+    description: Output the Vault token
+    required: false
+    default: "false"
+  secrets:
+    description: A list of secrets to read from Vault
+    required: false
+    default: ""
+
+runs:
+  using: docker
+  image: docker://ghcr.io/kdichalas/vault-action:latest
