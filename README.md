@@ -1,7 +1,9 @@
 # Vault Github Action
 
 ---
+
 This is not an official Action and has no affiliation to hashicorp
+
 ---
 
 ## Authentication Methods
