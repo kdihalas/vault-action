@@ -15,17 +15,17 @@ func main() {
 	githubactions.Infof("Starting vault action")
 
 	// Read inputs
-	vaultUrl := githubactions.GetInput("vault_url")
+	vaultUrl := githubactions.GetInput("url")
 	if vaultUrl == "" {
-		githubactions.Fatalf("vault_url is required")
+		githubactions.Fatalf("url is required")
 	}
-	vaultRole := githubactions.GetInput("vault_role")
+	vaultRole := githubactions.GetInput("role")
 	if vaultRole == "" {
-		githubactions.Fatalf("vault_role is required")
+		githubactions.Fatalf("role is required")
 	}
-	vaultJwtClaim := githubactions.GetInput("vault_jwt_claim")
+	vaultJwtClaim := githubactions.GetInput("jwt_claim")
 	if vaultJwtClaim == "" {
-		githubactions.Fatalf("vault_jwt_claim is required")
+		githubactions.Fatalf("jwt_claim is required")
 	}
 	githubactions.Infof("Reading the github token")
 	token, err := githubactions.GetIDToken(ctx, vaultJwtClaim)

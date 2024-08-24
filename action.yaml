@@ -7,17 +7,18 @@ description: |
   and even expose the Vault Token for later use.
 
 inputs:
-  vault_url:
+  url:
     description: The URL of the Vault instance
     required: true
-  vault_role:
+  role:
     description: The Vault role to use for authentication
-    required: true
-  vault_jwt_claim:
+    required: false
+    default: "github-action"
+  jwt_claim:
     description: The JWT claim to use for authentication
     required: false
     default: github
-  vault_output_token:
+  output_token:
     description: Output the Vault token
     required: false
     default: "false"
