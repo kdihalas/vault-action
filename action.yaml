@@ -10,14 +10,13 @@ inputs:
   vault_url:
     description: The URL of the Vault instance
     required: true
+  vault_role:
+    description: The Vault role to use for authentication
+    required: true
   vault_jwt_claim:
     description: The JWT claim to use for authentication
     required: false
     default: github
-  vault_ca_certificate:
-    description: The CA certificate to use for TLS verification
-    required: false
-    default: ""
   vault_output_token:
     description: Output the Vault token
     required: false
