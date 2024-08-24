@@ -34,6 +34,7 @@ jobs:
           export TARGET_VAR="${{ steps.bump.outputs.target }}"
           export TARGET=${TARGET_VAR:-patch}
           echo next=$(git-semver -prefix v -target $TARGET) >> "$GITHUB_OUTPUT"
+          echo "*version*: $(git-semver -prefix v -target $TARGET)"
       - uses: rickstaa/action-create-tag@v1
         id: "tag_create"
         with:
