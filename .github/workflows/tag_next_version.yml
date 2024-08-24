@@ -27,7 +27,7 @@ jobs:
       - name: Check if commit includes version bump
         id: bump
         run: |
-          echo target=$(git rev-list --max-count=1 --no-commit-header --format=%B HEAD | awk -F":" '{print $1}' | tr -d "\n\r" | grep -e "major|minor|patch") >> "$GITHUB_OUTPUT"
+          echo target=$(git rev-list --max-count=1 --no-commit-header --format=%B HEAD | awk -F":" '{print $1}' | tr -d "\n\r" | grep -e "major\|minor\|patch") >> "$GITHUB_OUTPUT"
       - name: Get next version
         id: version
         run: |
