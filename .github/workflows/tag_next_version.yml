@@ -8,9 +8,7 @@ jobs:
   build:
     permissions:
       id-token: write
-      packages: write
-      contents: read
-      attestations: write
+      contents: write
     runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io
