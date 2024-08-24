@@ -1,9 +1,10 @@
 name: Build versioned container
 
 on:
-  push:
-    tags:
-      - "v.*"
+  workflow_run:
+    workflows: ["Tag new version"]
+    types:
+      - completed
 
 jobs:
   build:

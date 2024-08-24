@@ -13,6 +13,8 @@ jobs:
     env:
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
+    outputs:
+      version: ${{ steps.version.outputs.next }}
     steps:
       - uses: actions/checkout@v4
         with:
