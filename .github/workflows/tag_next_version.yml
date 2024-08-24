@@ -31,7 +31,8 @@ jobs:
       - name: Get next version
         id: version
         run: |
-          export TARGET=${${{ steps.bump.outputs.target }}:-dev}
+          export TARGET_VAR="${{ steps.bump.outputs.target }}"
+          export TARGET=${TARGET_VAR:-dev}
           echo next=$(git-semver -prefix v -target $TARGET) >> "$GITHUB_OUTPUT"
       - uses: actions/github-script@v7
         with:
