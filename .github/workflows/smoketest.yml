@@ -5,7 +5,7 @@ on:
     - cron: "0 * * * *"
   workflow_dispatch:
 jobs:
-  new-version:
+  run:
     permissions:
       id-token: write
       contents: read
