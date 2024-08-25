@@ -43,9 +43,9 @@ func main() {
 	}
 
 	// Read the Vault Output Token flag and convert it to boolean
-	vaultOutputToken, err := strconv.ParseBool(githubactions.GetInput("vault_output_token"))
+	vaultOutputToken, err := strconv.ParseBool(githubactions.GetInput("output_token"))
 	if err != nil {
-		githubactions.Fatalf("Failed to parse vault_output_token: %v", err)
+		githubactions.Fatalf("Failed to parse output_token: %v", err)
 	}
 
 	// Login to vault
