@@ -16,4 +16,5 @@ RUN upx --best --lzma -o /app /app.org
 
 FROM scratch
 COPY --from=upx /app /app
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 ENTRYPOINT ["/app"]

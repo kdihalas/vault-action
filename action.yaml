@@ -17,7 +17,7 @@ inputs:
   jwt_claim:
     description: The JWT claim to use for authentication
     required: false
-    default: github
+    default: actor
   output_token:
     description: Output the Vault token
     required: false
