@@ -1,4 +1,4 @@
-# Vault Github Action
+# Vault Github Action [![Smoketest](https://github.com/kdihalas/vault-action/actions/workflows/smoketest.yml/badge.svg)](https://github.com/kdihalas/vault-action/actions/workflows/smoketest.yml)
 
 ---
 
@@ -22,7 +22,7 @@ jobs:
       # ...
       - name: Import Secrets
         id: import-secrets
-        uses: hashicorp/vault-action@v2
+        uses: kdihalas/vault-action@main
         with:
           url: https://vault.mycompany.com:8200
           output_token: "true"
@@ -39,7 +39,7 @@ jobs:
       # ...
       - name: Import Secrets
         id: import-secrets
-        uses: hashicorp/vault-action@v2
+        uses: kdihalas/vault-action@main
         with:
           url: https://vault.mycompany.com:8200
           secrets: |
