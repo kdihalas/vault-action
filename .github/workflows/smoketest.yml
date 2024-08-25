@@ -1,0 +1,21 @@
+name: Smoketest
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+jobs:
+  new-version:
+    permissions:
+      id-token: write
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Import Secrets
+        id: import-secrets
+        uses: kdihalas/vault-action@main
+        with:
+          url: https://vault.kdichalas.net
+          output_token: "true"
