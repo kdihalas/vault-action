@@ -29,4 +29,4 @@ inputs:
 
 runs:
   using: docker
-  image: docker://ghcr.io/kdihalas/vault-action:v0.0.12
+  image: docker://ghcr.io/kdihalas/vault-action:v0.0.14

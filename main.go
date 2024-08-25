@@ -12,7 +12,7 @@ import (
 
 func main() {
 	ctx := context.Background()
-	githubactions.Infof("Starting vault action")
+	githubactions.Infof("=> starting vault action")
 
 	// Read inputs
 	vaultUrl := githubactions.GetInput("url")
@@ -27,13 +27,13 @@ func main() {
 	if vaultJwtClaim == "" {
 		githubactions.Fatalf("jwt_claim is required")
 	}
-	githubactions.Infof("Reading the github token")
+	githubactions.Infof("=> reading the github token")
 	token, err := githubactions.GetIDToken(ctx, vaultJwtClaim)
 	if err != nil {
 		githubactions.Fatalf("Failed to get github token: %v", err)
 	}
 
-	githubactions.Infof("creating vault client")
+	githubactions.Infof("=> creating vault client")
 	client, err := vault.New(
 		vault.WithAddress(vaultUrl),
 		vault.WithRequestTimeout(30*time.Second),
@@ -58,7 +58,7 @@ func main() {
 	}
 	// Set the vault token as an environment variable
 	if vaultOutputToken {
-		githubactions.Infof("exporting vault token as env variable")
+		githubactions.Infof("=> exporting vault token as env variable")
 		githubactions.SetEnv("VAULT_TOKEN", resp.Auth.ClientToken)
 	}
 
