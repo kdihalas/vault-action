@@ -60,6 +60,7 @@ func main() {
 	if vaultOutputToken {
 		githubactions.Infof("=> exporting vault token as env variable")
 		githubactions.SetEnv("VAULT_TOKEN", resp.Auth.ClientToken)
+		githubactions.AddMask(resp.Auth.ClientToken)
 	}
 
 }
