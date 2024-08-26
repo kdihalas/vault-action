@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/vault-client-go"
@@ -63,4 +64,28 @@ func main() {
 		githubactions.AddMask(resp.Auth.ClientToken)
 	}
 
+	secrets := githubactions.GetInput("secrets")
+	if secrets == "empty" {
+		githubactions.Infof("=> no secrets to read")
+		return
+	}
+
+	githubactions.Infof("=> reading secrets")
+	for _, line := range strings.Split(secrets, ";\n") {
+		secret := strings.TrimSpace(line)
+		if secret == "" {
+			continue
+		}
+		secretParsed := strings.Split(secret, "|")
+		left, right := strings.TrimSpace(secretParsed[0]), strings.TrimSpace(secretParsed[1])
+		leftParsed := strings.Split(left, " ")
+		path := strings.TrimSpace(leftParsed[0])
+		key := strings.TrimSpace(leftParsed[1])
+		vaultSecret, err := client.Secrets.KvV2Read(ctx, path, vault.WithToken(resp.Auth.ClientToken))
+		if err != nil {
+			githubactions.Fatalf("Failed to read secret %s: %v", path, err)
+		}
+		githubactions.SetEnv(right, vaultSecret.Data.Data[key].(string))
+		githubactions.AddMask(right)
+	}
 }

@@ -25,7 +25,7 @@ inputs:
   secrets:
     description: A list of secrets to read from Vault
     required: false
-    default: ""
+    default: "empty"
 
 runs:
   using: docker
