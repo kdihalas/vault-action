@@ -91,6 +91,6 @@ func main() {
 			githubactions.Fatalf("Failed to read secret %s%s: %v", mountPath, secretPath, err)
 		}
 		githubactions.SetEnv(right, vaultSecret.Data.Data[key].(string))
-		githubactions.AddMask(right)
+		githubactions.AddMask(vaultSecret.Data.Data[key].(string))
 	}
 }
