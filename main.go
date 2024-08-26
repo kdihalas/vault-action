@@ -72,7 +72,7 @@ func main() {
 
 	githubactions.Infof("=> reading secrets")
 	for _, line := range strings.Split(secrets, ";\n") {
-		secret := strings.TrimSpace(line)
+		secret := strings.TrimRight(strings.TrimSpace(line), ";")
 		if secret == "" {
 			continue
 		}
