@@ -21,8 +21,8 @@ jobs:
           url: https://vault.kdichalas.net
           output_token: "true"
           secrets: |
-            data/ci/aws id | AWS_ID;
-            data/ci/aws secret | AWS_SECRET;
+            github/data/ci/aws id | AWS_ID;
+            github/data/ci/aws secret | AWS_SECRET;
       - name: Print vault-token
         run: echo $VAULT_TOKEN
       - name: Print id and secret
