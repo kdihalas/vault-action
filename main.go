@@ -79,11 +79,16 @@ func main() {
 		secretParsed := strings.Split(secret, "|")
 		left, right := strings.TrimSpace(secretParsed[0]), strings.TrimSpace(secretParsed[1])
 		leftParsed := strings.Split(left, " ")
-		path := strings.TrimSpace(leftParsed[0])
+		parsedPath := strings.Split(strings.TrimSpace(leftParsed[0]), "/")
+		mountPath := parsedPath[0]
+		secretPath := strings.Join(parsedPath[1:], "/")
 		key := strings.TrimSpace(leftParsed[1])
-		vaultSecret, err := client.Secrets.KvV2Read(ctx, path, vault.WithToken(resp.Auth.ClientToken))
+		vaultSecret, err := client.Secrets.KvV2Read(ctx, secretPath,
+			vault.WithToken(resp.Auth.ClientToken),
+			vault.WithMountPath(mountPath),
+		)
 		if err != nil {
-			githubactions.Fatalf("Failed to read secret %s: %v", path, err)
+			githubactions.Fatalf("Failed to read secret %s%s: %v", mountPath, secretPath, err)
 		}
 		githubactions.SetEnv(right, vaultSecret.Data.Data[key].(string))
 		githubactions.AddMask(right)
