@@ -26,6 +26,8 @@ github.com/ryanuber/go-glob v1.0.0 h1:iQh3xXAumdQ+4Ufa5b25cRpC5TYKlno6hsv6Cb3pkB
 github.com/ryanuber/go-glob v1.0.0/go.mod h1:807d1WSdnB0XRJzKNil9Om6lcp/3a0v4qIHxIXzX/Yc=
 github.com/sethvargo/go-githubactions v1.2.0 h1:Gbr36trCAj6uq7Rx1DolY1NTIg0wnzw3/N5WHdKIjME=
 github.com/sethvargo/go-githubactions v1.2.0/go.mod h1:7/4WeHgYfSz9U5vwuToCK9KPnELVHAhGtRwLREOQV80=
+github.com/sethvargo/go-githubactions v1.3.0 h1:Kg633LIUV2IrJsqy2MfveiED/Ouo+H2P0itWS0eLh8A=
+github.com/sethvargo/go-githubactions v1.3.0/go.mod h1:7/4WeHgYfSz9U5vwuToCK9KPnELVHAhGtRwLREOQV80=
 github.com/stretchr/testify v1.8.0 h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PKk=
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 golang.org/x/sys v0.24.0 h1:Twjiwq9dn6R1fQcyiK+wQyHWfaz/BJB+YIpzU/Cv3Xg=
