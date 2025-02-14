@@ -1,4 +1,4 @@
-# Vault Github Action [![Smoketest](https://github.com/kdihalas/vault-action/actions/workflows/smoketest.yml/badge.svg)](https://github.com/kdihalas/vault-action/actions/workflows/smoketest.yml)
+# Vault Github Action
 
 ---
 
