@@ -16,7 +16,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.next }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Set up Homebrew
@@ -52,7 +52,7 @@ jobs:
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Login to GitHub Container Registry
