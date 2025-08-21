@@ -1,10 +1,8 @@
 ---
-name: Vault Action
+name: Simple Vault Action
 author: Konstantinos Dichalas
 description: |
-  An action that helps you inderact with a vault instance.
-  It can Authenticate using Github OIDC, read Secrets
-  and even expose the Vault Token for later use.
+  An action that helps you inderact with a Hashicorp Vault Instance
 
 inputs:
   url:
