@@ -4,7 +4,7 @@ go 1.22.2
 
 require (
 	github.com/hashicorp/vault-client-go v0.4.3
-	github.com/sethvargo/go-githubactions v1.3.1
+	github.com/sethvargo/go-githubactions v1.3.2
 )
 
 require (
