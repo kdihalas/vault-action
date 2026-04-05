@@ -22,7 +22,7 @@ jobs:
           --cap-add=IPC_LOCK
 
       localstack:
-        image: localstack/localstack:latest
+        image: localstack/localstack:4
         env:
           SERVICES: iam,sts
           EAGER_SERVICE_LOADING: "1"
