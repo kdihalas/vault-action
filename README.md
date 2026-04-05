@@ -1,5 +1,7 @@
 # Vault GitHub Action
 
+[![E2E](https://github.com/kdihalas/vault-action/actions/workflows/e2e.yml/badge.svg)](https://github.com/kdihalas/vault-action/actions/workflows/e2e.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/kdihalas/vault-action)](https://goreportcard.com/report/github.com/kdihalas/vault-action)
+
 A GitHub Action for authenticating to HashiCorp Vault using GitHub's OIDC provider and optionally reading secrets into your workflow.
 
 **This is not an official HashiCorp project and has no affiliation with HashiCorp.**

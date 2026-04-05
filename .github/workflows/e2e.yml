@@ -21,11 +21,31 @@ jobs:
         options: >-
           --cap-add=IPC_LOCK
 
+      localstack:
+        image: localstack/localstack:latest
+        env:
+          SERVICES: iam,sts
+        ports:
+          - 4566:4566
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Configure Vault
+      - name: Wait for LocalStack
+        run: |
+          echo "Waiting for LocalStack to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4566/_localstack/health | grep -q '"iam"'; then
+              echo "LocalStack IAM service is ready"
+              break
+            fi
+            echo "  attempt ${i}/30 — not ready yet, sleeping 2s"
+            sleep 2
+          done
+          curl -sf http://localhost:4566/_localstack/health
+
+      - name: Configure Vault (JWT + KV)
         env:
           VAULT_ADDR: http://localhost:8200
           VAULT_TOKEN: root
@@ -47,11 +67,13 @@ jobs:
             }' \
             "${VAULT_ADDR}/v1/auth/jwt/config"
 
-          # Create a policy allowing read on the test secret path
+          # Create a policy allowing read on KV and AWS creds paths
           curl -sf \
             --header "X-Vault-Token: ${VAULT_TOKEN}" \
             --request POST \
-            --data '{"policy":"path \"secret/data/e2e/*\" { capabilities = [\"read\"] }"}' \
+            --data '{
+              "policy": "path \"secret/data/e2e/*\" { capabilities = [\"read\"] }\npath \"aws/creds/e2e-role\" { capabilities = [\"read\"] }\npath \"aws/sts/e2e-role\" { capabilities = [\"read\"] }"
+            }' \
             "${VAULT_ADDR}/v1/sys/policies/acl/e2e-policy"
 
           # Create the JWT role bound to this repository and the vault-e2e audience
@@ -75,6 +97,61 @@ jobs:
             --data '{"data":{"username":"e2e-user","password":"super-secret-value"}}' \
             "${VAULT_ADDR}/v1/secret/data/e2e/test"
 
+      - name: Configure Vault AWS secrets engine (LocalStack)
+        env:
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: root
+          # Dummy credentials — LocalStack does not validate them for IAM/STS operations
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          # Create an IAM user in LocalStack for Vault to use as its root credential
+          aws --endpoint-url=http://localhost:4566 iam create-user --user-name vault-e2e
+
+          # Attach a broad inline policy so the user can call STS on LocalStack
+          aws --endpoint-url=http://localhost:4566 iam put-user-policy \
+            --user-name vault-e2e \
+            --policy-name vault-e2e-policy \
+            --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}'
+
+          # Create an access key for the IAM user and capture the credentials
+          KEY_JSON=$(aws --endpoint-url=http://localhost:4566 iam create-access-key --user-name vault-e2e)
+          VAULT_AWS_ACCESS_KEY=$(echo "${KEY_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin)['AccessKey']; print(d['AccessKeyId'])")
+          VAULT_AWS_SECRET_KEY=$(echo "${KEY_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin)['AccessKey']; print(d['SecretAccessKey'])")
+
+          # Enable the AWS secrets engine at aws/
+          curl -sf \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data '{"type":"aws"}' \
+            "${VAULT_ADDR}/v1/sys/mounts/aws"
+
+          # Configure root credentials pointing at LocalStack
+          # Vault (in its service container) reaches LocalStack via the bridge network hostname
+          curl -sf \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data "{
+              \"access_key\": \"${VAULT_AWS_ACCESS_KEY}\",
+              \"secret_key\": \"${VAULT_AWS_SECRET_KEY}\",
+              \"region\": \"us-east-1\",
+              \"iam_endpoint\": \"http://localstack:4566\",
+              \"sts_endpoint\": \"http://localstack:4566\"
+            }" \
+            "${VAULT_ADDR}/v1/aws/config/root"
+
+          # Create a federation_token role — Vault calls sts:GetFederationToken, which returns
+          # a security_token (session token), exercising the full AWS creds path in the action
+          curl -sf \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data '{
+              "credential_type": "federation_token",
+              "policy_document": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}"
+            }' \
+            "${VAULT_ADDR}/v1/aws/roles/e2e-role"
+
       - name: Run vault-action
         uses: ./
         with:
@@ -84,11 +161,14 @@ jobs:
           secrets: |
             secret/e2e/test username | E2E_USERNAME;
             secret/e2e/test password | E2E_PASSWORD
+          aws_secrets: |
+            aws/e2e-role | E2E_AWS;
 
       - name: Assert secrets
         run: |
           FAILED=0
 
+          # KV assertions
           if [ -z "${E2E_USERNAME}" ]; then
             echo "FAIL: E2E_USERNAME is empty"
             FAILED=1
@@ -107,6 +187,37 @@ jobs:
             FAILED=1
           else
             echo "PASS: E2E_PASSWORD is set and correct"
+          fi
+
+          # AWS credential assertions — values are dynamic so we check non-empty + minimum length
+          if [ -z "${E2E_AWS_ACCESS_KEY_ID}" ]; then
+            echo "FAIL: E2E_AWS_ACCESS_KEY_ID is empty"
+            FAILED=1
+          elif [ "${#E2E_AWS_ACCESS_KEY_ID}" -lt 8 ]; then
+            echo "FAIL: E2E_AWS_ACCESS_KEY_ID is suspiciously short (${#E2E_AWS_ACCESS_KEY_ID} chars)"
+            FAILED=1
+          else
+            echo "PASS: E2E_AWS_ACCESS_KEY_ID is set (length: ${#E2E_AWS_ACCESS_KEY_ID})"
+          fi
+
+          if [ -z "${E2E_AWS_SECRET_ACCESS_KEY}" ]; then
+            echo "FAIL: E2E_AWS_SECRET_ACCESS_KEY is empty"
+            FAILED=1
+          elif [ "${#E2E_AWS_SECRET_ACCESS_KEY}" -lt 8 ]; then
+            echo "FAIL: E2E_AWS_SECRET_ACCESS_KEY is suspiciously short (${#E2E_AWS_SECRET_ACCESS_KEY} chars)"
+            FAILED=1
+          else
+            echo "PASS: E2E_AWS_SECRET_ACCESS_KEY is set (length: ${#E2E_AWS_SECRET_ACCESS_KEY})"
+          fi
+
+          if [ -z "${E2E_AWS_SESSION_TOKEN}" ]; then
+            echo "FAIL: E2E_AWS_SESSION_TOKEN is empty (expected from federation_token role)"
+            FAILED=1
+          elif [ "${#E2E_AWS_SESSION_TOKEN}" -lt 8 ]; then
+            echo "FAIL: E2E_AWS_SESSION_TOKEN is suspiciously short (${#E2E_AWS_SESSION_TOKEN} chars)"
+            FAILED=1
+          else
+            echo "PASS: E2E_AWS_SESSION_TOKEN is set (length: ${#E2E_AWS_SESSION_TOKEN})"
           fi
 
           exit "${FAILED}"
