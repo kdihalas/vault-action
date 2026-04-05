@@ -24,6 +24,13 @@ inputs:
     description: A list of secrets to read from Vault
     required: false
     default: "empty"
+  aws_secrets:
+    description: >
+      A list of Vault AWS secrets engine roles to generate dynamic AWS credentials from.
+      Format: "<mount>/<role> | <ENV_PREFIX>" (one per line, semicolon-separated).
+      Exports <PREFIX>_ACCESS_KEY_ID, <PREFIX>_SECRET_ACCESS_KEY, and (when present) <PREFIX>_SESSION_TOKEN.
+    required: false
+    default: "empty"
 
 runs:
   using: docker

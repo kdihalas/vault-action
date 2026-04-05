@@ -114,7 +114,8 @@ jobs:
 | `role` | no | `github-action` | Vault JWT authentication role name |
 | `jwt_claim` | no | `actor` | GitHub claim to use as the JWT audience (e.g., `actor`, `ref`, `repo`) |
 | `output_token` | no | `false` | If `true`, export the Vault client token as `VAULT_TOKEN` environment variable (masked) |
-| `secrets` | no | `empty` | Multi-line string of secrets to fetch from Vault (see format below) |
+| `secrets` | no | `empty` | Multi-line string of KV v2 secrets to fetch from Vault (see format below) |
+| `aws_secrets` | no | `empty` | Multi-line string of AWS secrets engine roles to generate dynamic credentials from (see format below) |
 
 ## Secrets format
 
@@ -143,6 +144,77 @@ secrets: |
 ```
 
 This reads three secrets from the `secret` KV v2 mount and exports them as masked environment variables.
+
+## AWS dynamic credentials
+
+The `aws_secrets` input uses Vault's [AWS secrets engine](https://developer.hashicorp.com/vault/docs/secrets/aws) to generate short-lived IAM credentials on demand. Each entry specifies a mount path, a Vault AWS role name, and an environment variable prefix:
+
+```
+<mount>/<role> | <ENV_PREFIX>;
+```
+
+For each entry the action calls `GET /v1/<mount>/creds/<role>` and exports:
+
+- `<PREFIX>_ACCESS_KEY_ID`
+- `<PREFIX>_SECRET_ACCESS_KEY`
+- `<PREFIX>_SESSION_TOKEN` — only when Vault returns a session token (STS / assumed-role credential types); omitted for plain `iam_user` roles
+
+All three values are masked in workflow logs. The lease ID is printed as an info log so you can revoke credentials manually if needed.
+
+### Example: KV secrets and AWS dynamic credentials in one step
+
+```yaml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch secrets and AWS credentials from Vault
+        uses: kdihalas/vault-action@v0
+        with:
+          url: https://vault.example.com:8200
+          role: github-action
+          secrets: |
+            secret/data/prod/database password | DB_PASSWORD;
+            secret/data/prod/api token | API_TOKEN;
+          aws_secrets: |
+            aws/deploy-role | AWS;
+            aws-prod/readonly | PROD_AWS;
+
+      - name: Deploy
+        run: |
+          aws s3 sync ./dist s3://my-bucket
+          aws ecs update-service --cluster prod --service api --force-new-deployment
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
+```
+
+`PROD_AWS_ACCESS_KEY_ID`, `PROD_AWS_SECRET_ACCESS_KEY`, and `PROD_AWS_SESSION_TOKEN` are also available from the second entry.
+
+### Vault AWS secrets engine setup
+
+Enable and configure the AWS secrets engine before using this input:
+
+```bash
+vault secrets enable -path=aws aws
+
+vault write aws/config/root \
+  access_key=<ADMIN_ACCESS_KEY> \
+  secret_key=<ADMIN_SECRET_KEY> \
+  region=us-east-1
+
+vault write aws/roles/deploy-role \
+  credential_type=assumed_role \
+  role_arns=arn:aws:iam::123456789012:role/DeployRole
+```
+
+See the full guide at https://developer.hashicorp.com/vault/docs/secrets/aws.
 
 ## Vault setup
 
