@@ -1,53 +1,36 @@
-name: Bake new version
+name: Release
 
 on:
   push:
     branches:
-      - "main"
+      - main
+
 jobs:
-  new-version:
+  release-please:
     permissions:
       id-token: write
       contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
     outputs:
-      version: ${{ steps.version.outputs.next }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: googleapis/release-please-action@v4
+        id: release
         with:
-          fetch-depth: 0
-      - name: Set up Homebrew
-        id: set-up-homebrew
-        uses: Homebrew/actions/setup-homebrew@master
-      - name: Install git-semver
-        run: brew install mdomke/git-semver/git-semver
-      - name: Check if commit includes version bump
-        id: bump
-        run: |
-          echo target=$(git rev-list --max-count=1 --no-commit-header --format=%B HEAD | awk -F":" '{print $1}' | tr -d "\n\r" | grep -e "major\|minor") >> "$GITHUB_OUTPUT"
-      - name: Get next version
-        id: version
-        run: |
-          export TARGET_VAR="${{ steps.bump.outputs.target }}"
-          export TARGET=${TARGET_VAR:-patch}
-          echo next=$(git-semver -prefix v -target $TARGET) >> "$GITHUB_OUTPUT"
-          echo "*version*: $(git-semver -prefix v -target $TARGET)" >> $GITHUB_STEP_SUMMARY
-      - uses: rickstaa/action-create-tag@v1
-        id: "tag_create"
-        with:
-          tag: "${{ steps.version.outputs.next }}"
-          tag_exists_error: true
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   build-image:
     permissions:
       id-token: write
       packages: write
-      contents: read
+      contents: write
       attestations: write
     runs-on: ubuntu-latest
-    needs: new-version
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     env:
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
@@ -67,7 +50,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{needs.new-version.outputs.version}}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.release-please.outputs.tag_name }}
       - name: Attest
         uses: actions/attest-build-provenance@v4
         id: attest
@@ -75,3 +58,15 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+      - name: Push sliding major tag
+        env:
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          MAJOR_TAG="v$(echo "${TAG_NAME}" | sed 's/^v//' | cut -d. -f1)"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git tag -f "${MAJOR_TAG}"
+          git push -f origin "${MAJOR_TAG}"
+          docker buildx imagetools create \
+            --tag "${REGISTRY}/${IMAGE_NAME}:${MAJOR_TAG}" \
+            "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}"
