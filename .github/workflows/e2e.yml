@@ -1,0 +1,112 @@
+name: E2E
+
+on:
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    services:
+      vault:
+        image: hashicorp/vault:latest
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: root
+          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+        ports:
+          - 8200:8200
+        options: >-
+          --cap-add=IPC_LOCK
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure Vault
+        env:
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: root
+        run: |
+          # Enable JWT auth method
+          curl -sf \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data '{"type":"jwt"}' \
+            "${VAULT_ADDR}/v1/sys/auth/jwt"
+
+          # Configure JWT auth with GitHub OIDC discovery
+          curl -sf \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data '{
+              "oidc_discovery_url": "https://token.actions.githubusercontent.com",
+              "bound_issuer": "https://token.actions.githubusercontent.com"
+            }' \
+            "${VAULT_ADDR}/v1/auth/jwt/config"
+
+          # Create a policy allowing read on the test secret path
+          curl -sf \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data '{"policy":"path \"secret/data/e2e/*\" { capabilities = [\"read\"] }"}' \
+            "${VAULT_ADDR}/v1/sys/policies/acl/e2e-policy"
+
+          # Create the JWT role bound to this repository and the vault-e2e audience
+          curl -sf \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data "{
+              \"role_type\": \"jwt\",
+              \"bound_audiences\": [\"vault-e2e\"],
+              \"bound_claims\": {\"repository\": \"${GITHUB_REPOSITORY}\"},
+              \"user_claim\": \"actor\",
+              \"policies\": [\"e2e-policy\"],
+              \"ttl\": \"10m\"
+            }" \
+            "${VAULT_ADDR}/v1/auth/jwt/role/github-action"
+
+          # KV v2 is already mounted at secret/ in dev mode; write the test secret
+          curl -sf \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data '{"data":{"username":"e2e-user","password":"super-secret-value"}}' \
+            "${VAULT_ADDR}/v1/secret/data/e2e/test"
+
+      - name: Run vault-action
+        uses: ./
+        with:
+          url: http://vault:8200
+          role: github-action
+          jwt_claim: vault-e2e
+          secrets: |
+            secret/e2e/test username | E2E_USERNAME;
+            secret/e2e/test password | E2E_PASSWORD
+
+      - name: Assert secrets
+        run: |
+          FAILED=0
+
+          if [ -z "${E2E_USERNAME}" ]; then
+            echo "FAIL: E2E_USERNAME is empty"
+            FAILED=1
+          elif [ "${E2E_USERNAME}" != "e2e-user" ]; then
+            echo "FAIL: E2E_USERNAME has unexpected value (not 'e2e-user')"
+            FAILED=1
+          else
+            echo "PASS: E2E_USERNAME is set and correct"
+          fi
+
+          if [ -z "${E2E_PASSWORD}" ]; then
+            echo "FAIL: E2E_PASSWORD is empty"
+            FAILED=1
+          elif [ "${E2E_PASSWORD}" != "super-secret-value" ]; then
+            echo "FAIL: E2E_PASSWORD has unexpected value"
+            FAILED=1
+          else
+            echo "PASS: E2E_PASSWORD is set and correct"
+          fi
+
+          exit "${FAILED}"
