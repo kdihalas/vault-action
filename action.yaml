@@ -31,6 +31,19 @@ inputs:
       Exports <PREFIX>_ACCESS_KEY_ID, <PREFIX>_SECRET_ACCESS_KEY, and (when present) <PREFIX>_SESSION_TOKEN.
     required: false
     default: "empty"
+  kube_secrets:
+    description: >
+      A list of Vault Kubernetes secrets engine roles to generate short-lived service account tokens from.
+      Format: "<mount>/<role> <namespace> <api_server_url> <ca_cert_b64> | <context_name>" (one per line, semicolon-separated).
+      Writes a merged kubeconfig to $RUNNER_TEMP, exports KUBECONFIG, and sets the kubeconfig output.
+    required: false
+    default: "empty"
+
+outputs:
+  kubeconfig:
+    description: >
+      Path to the generated kubeconfig file containing all Kubernetes contexts from kube_secrets entries.
+      Only set when kube_secrets is provided.
 
 runs:
   using: docker

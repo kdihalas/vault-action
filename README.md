@@ -9,6 +9,8 @@ A GitHub Action for authenticating to HashiCorp Vault using GitHub's OIDC provid
 - Authenticate to Vault using GitHub's OpenID Connect (OIDC) provider
 - Optional JWT token export for direct Vault API calls in subsequent steps
 - Automatic secret retrieval from Vault KV v2 mounts
+- AWS dynamic credentials via the Vault AWS secrets engine
+- Kubernetes dynamic credentials via the Vault Kubernetes secrets engine — generates a merged multi-cluster kubeconfig
 - Masked output for all sensitive values
 - No external dependencies—runs in a Docker container
 
@@ -116,6 +118,13 @@ jobs:
 | `output_token` | no | `false` | If `true`, export the Vault client token as `VAULT_TOKEN` environment variable (masked) |
 | `secrets` | no | `empty` | Multi-line string of KV v2 secrets to fetch from Vault (see format below) |
 | `aws_secrets` | no | `empty` | Multi-line string of AWS secrets engine roles to generate dynamic credentials from (see format below) |
+| `kube_secrets` | no | `empty` | Multi-line string of Kubernetes secrets engine roles to generate dynamic service account tokens from (see format below) |
+
+## Outputs
+
+| Output | Description |
+|--------|-------------|
+| `kubeconfig` | Path to the generated kubeconfig file (only set when `kube_secrets` is provided) |
 
 ## Secrets format
 
@@ -215,6 +224,88 @@ vault write aws/roles/deploy-role \
 ```
 
 See the full guide at https://developer.hashicorp.com/vault/docs/secrets/aws.
+
+## Kubernetes dynamic credentials
+
+The `kube_secrets` input uses Vault's [Kubernetes secrets engine](https://developer.hashicorp.com/vault/docs/secrets/kubernetes) to generate short-lived service account tokens on demand. Each entry specifies a Vault mount/role, a target namespace, and the cluster's API server URL and CA certificate:
+
+```
+<mount>/<role> <namespace> <api_server_url> <ca_cert_b64> | <context_name>;
+```
+
+For each entry the action calls `POST /v1/<mount>/creds/<role>` and:
+
+- Builds a kubeconfig `cluster` entry from `<api_server_url>` and `<ca_cert_b64>`.
+- Adds a `user` entry with the generated `service_account_token` (masked in logs).
+- Adds a `context` entry named `<context_name>` linking cluster, user, and namespace.
+- Sets `current-context` to the first entry's context name.
+
+The merged kubeconfig is written to `$RUNNER_TEMP/vault-action-kubeconfig-<random>.yaml` with mode `0600`. Its path is exported as `KUBECONFIG` (so `kubectl` in subsequent steps picks it up automatically) and also emitted as the `kubeconfig` step output. The lease ID and service account name/namespace are printed as info logs per entry; the token itself is never logged.
+
+### Example: multi-cluster deploy
+
+```yaml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Kubernetes credentials from Vault
+        id: vault
+        uses: kdihalas/vault-action@v0
+        with:
+          url: https://vault.example.com:8200
+          role: github-action
+          kube_secrets: |
+            k8s/deployer default https://prod-api.example.com:6443 LS0tLS1CRUdJTi... | prod;
+            k8s/deployer staging https://stg-api.example.com:6443 LS0tLS1CRUdJTi... | staging;
+
+      # KUBECONFIG is already set; kubectl uses the merged file automatically.
+      # current-context is "prod" (first entry).
+      - name: Deploy to prod
+        run: |
+          kubectl apply -f k8s/prod/
+
+      - name: Deploy to staging
+        run: |
+          kubectl config use-context staging
+          kubectl apply -f k8s/staging/
+
+      # Explicit path via the step output if needed.
+      - name: Print kubeconfig path
+        run: echo "kubeconfig at ${{ steps.vault.outputs.kubeconfig }}"
+```
+
+### Vault Kubernetes secrets engine setup
+
+Enable and configure the Kubernetes secrets engine before using this input:
+
+```bash
+# Enable the engine at a custom mount path
+vault secrets enable -path=k8s kubernetes
+
+# Point it at your cluster (runs inside the cluster or with explicit config)
+vault write k8s/config \
+  kubernetes_host="https://prod-api.example.com:6443" \
+  kubernetes_ca_cert=@/path/to/ca.crt \
+  service_account_jwt="$(kubectl get secret vault-sa-token -o jsonpath='{.data.token}' | base64 -d)"
+
+# Create a role — choose one of: kubernetes_role_name (existing ClusterRole/Role),
+# generated_role_rules (inline RBAC rules), or service_account_name (existing SA).
+vault write k8s/roles/deployer \
+  allowed_kubernetes_namespaces="default,staging" \
+  kubernetes_role_name=deploy-role \
+  token_ttl=10m \
+  token_max_ttl=30m
+```
+
+The Vault policy for the GitHub Actions JWT role must allow `read` on `k8s/creds/<role-name>`.
+
+See the full guide at https://developer.hashicorp.com/vault/docs/secrets/kubernetes.
 
 ## Vault setup
 
