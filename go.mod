@@ -1,6 +1,6 @@
 module github.com/kdihalas/vault-action
 
-go 1.22.2
+go 1.26.0
 
 require (
 	github.com/hashicorp/vault-client-go v0.4.3
