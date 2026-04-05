@@ -24,7 +24,7 @@ func handleAwsSecrets(ctx context.Context, client *vault.Client, token string, l
 			githubactions.Fatalf("Invalid aws_secrets entry (expected <mount>/<role>): %q", mountRole)
 		}
 
-		awsCreds, err := client.Secrets.AwsGenerateCredentials(ctx, roleName, "", "", "",
+		awsCreds, err := client.Secrets.AwsGenerateCredentials(ctx, roleName, "", "", "900",
 			vault.WithToken(token),
 			vault.WithMountPath(mountPath),
 		)

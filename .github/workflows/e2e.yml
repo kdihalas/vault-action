@@ -16,6 +16,7 @@ jobs:
         env:
           VAULT_DEV_ROOT_TOKEN_ID: root
           VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+          VAULT_LOG_LEVEL: debug
         ports:
           - 8200:8200
         options: >-
@@ -93,7 +94,7 @@ jobs:
               \"bound_claims\": {\"repository\": \"${GITHUB_REPOSITORY}\"},
               \"user_claim\": \"actor\",
               \"policies\": [\"e2e-policy\"],
-              \"ttl\": \"10m\"
+              \"ttl\": \"1h\"
             }" \
             "${VAULT_ADDR}/v1/auth/jwt/role/github-action"
 
@@ -155,7 +156,7 @@ jobs:
             --request POST \
             --data '{
               "credential_type": "federation_token",
-              "default_sts_ttl": "900s",
+              "default_sts_ttl": "3600s",
               "max_sts_ttl": "3600s",
               "policy_document": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}"
             }' \
