@@ -155,6 +155,8 @@ jobs:
             --request POST \
             --data '{
               "credential_type": "federation_token",
+              "default_sts_ttl": "900s",
+              "max_sts_ttl": "3600s",
               "policy_document": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}"
             }' \
             "${VAULT_ADDR}/v1/aws/roles/e2e-role"
