@@ -34,4 +34,4 @@ inputs:
 
 runs:
   using: docker
-  image: docker://ghcr.io/kdihalas/vault-action:v0.0.42 # x-release-please-version
+  image: docker://ghcr.io/kdihalas/vault-action:v1.0.0 # x-release-please-version
