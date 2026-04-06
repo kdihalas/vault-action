@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/kdihalas/vault-action/compare/v2.0.0...v2.1.0) (2026-04-06)
+
+
+### Features
+
+* enable e2e for kubernetes ([#34](https://github.com/kdihalas/vault-action/issues/34)) ([f9ee79d](https://github.com/kdihalas/vault-action/commit/f9ee79d104ee0b217aa31353da88215d2fd4aa06))
+
 ## [2.0.0](https://github.com/kdihalas/vault-action/compare/v1.0.0...v2.0.0) (2026-04-05)
 
 
