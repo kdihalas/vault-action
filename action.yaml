@@ -43,9 +43,13 @@ inputs:
     description: >
       A list of Vault Kubernetes secrets engine roles to generate short-lived service account tokens from.
       Format: "<mount>/<role> <namespace> <api_server_url> <ca_cert_b64> | <context_name>" (one per line, semicolon-separated).
-      Writes a merged kubeconfig to $RUNNER_TEMP, exports KUBECONFIG, and sets the kubeconfig output.
+      Writes a merged kubeconfig to GITHUB_WORKSPACE, exports KUBECONFIG, and sets the kubeconfig output.
     required: false
     default: "empty"
+  host_workspace:
+    description: "Internal: host workspace path for Docker path mapping. Do not set manually."
+    required: false
+    default: ${{ github.workspace }}
 
 outputs:
   kubeconfig:

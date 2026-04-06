@@ -347,12 +347,6 @@ jobs:
           fi
 
           # Kubernetes kubeconfig assertions
-          # The action runs in a Docker container where RUNNER_TEMP is mounted at
-          # /github/runner_temp, but this step runs on the host. Translate the path.
-          if [ -n "${KUBECONFIG}" ]; then
-            KUBECONFIG="${RUNNER_TEMP}/$(basename "${KUBECONFIG}")"
-          fi
-
           if [ -z "${KUBECONFIG}" ]; then
             echo "FAIL: KUBECONFIG is empty"
             FAILED=1
@@ -383,7 +377,7 @@ jobs:
             fi
           fi
 
-          # Reset KUBECONFIG so the kind-action post step can clean up using its default config
+          # Clear KUBECONFIG so the kind-action post step uses its default ~/.kube/config
           echo "KUBECONFIG=" >> "${GITHUB_ENV}"
 
           exit "${FAILED}"

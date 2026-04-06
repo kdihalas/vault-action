@@ -140,17 +140,31 @@ func handleKubeSecrets(ctx context.Context, client *vault.Client, token string, 
 		githubactions.Fatalf("Failed to marshal kubeconfig: %v", err)
 	}
 
-	runnerTemp := os.Getenv("RUNNER_TEMP")
-	if runnerTemp == "" {
-		runnerTemp = os.TempDir()
+	baseDir := os.Getenv("GITHUB_WORKSPACE")
+	if baseDir == "" {
+		baseDir = os.Getenv("RUNNER_TEMP")
 	}
-	kubeconfigPath := filepath.Join(runnerTemp, fmt.Sprintf("vault-action-kubeconfig-%d.yaml", rand.Int63()))
+	if baseDir == "" {
+		baseDir = os.TempDir()
+	}
+	kubeconfigPath := filepath.Join(baseDir, fmt.Sprintf(".vault-action-kubeconfig-%d.yaml", rand.Int63()))
 
 	if err := os.WriteFile(kubeconfigPath, kubeYAML, 0644); err != nil {
 		githubactions.Fatalf("Failed to write kubeconfig to %s: %v", kubeconfigPath, err)
 	}
 
 	githubactions.Infof("=> kubeconfig written to %s", kubeconfigPath)
-	githubactions.SetEnv("KUBECONFIG", kubeconfigPath)
-	githubactions.SetOutput("kubeconfig", kubeconfigPath)
+
+	// Docker container actions mount GITHUB_WORKSPACE at /github/workspace, but
+	// subsequent host steps see a different absolute path. Use the host workspace
+	// path (passed via host_workspace input) so KUBECONFIG works in later steps.
+	hostWorkspace := githubactions.GetInput("host_workspace")
+	githubactions.Debugf("host_workspace input: %q", hostWorkspace)
+	if hostWorkspace == "" {
+		hostWorkspace = baseDir
+	}
+	hostPath := filepath.Join(hostWorkspace, filepath.Base(kubeconfigPath))
+	githubactions.Infof("=> KUBECONFIG will be set to %s", hostPath)
+	githubactions.SetEnv("KUBECONFIG", hostPath)
+	githubactions.SetOutput("kubeconfig", hostPath)
 }
