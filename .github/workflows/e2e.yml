@@ -75,12 +75,12 @@ jobs:
             }' \
             "${VAULT_ADDR}/v1/auth/jwt/config"
 
-          # Create a policy allowing read on KV and AWS creds paths
+          # Create a policy allowing read on KV, AWS creds, and Kubernetes creds paths
           curl -sf \
             --header "X-Vault-Token: ${VAULT_TOKEN}" \
             --request POST \
             --data '{
-              "policy": "path \"secret/data/e2e/*\" { capabilities = [\"read\"] }\npath \"aws/creds/e2e-role\" { capabilities = [\"read\"] }\npath \"aws/sts/e2e-role\" { capabilities = [\"read\"] }"
+              "policy": "path \"secret/data/e2e/*\" { capabilities = [\"read\"] }\npath \"aws/creds/e2e-role\" { capabilities = [\"read\"] }\npath \"aws/sts/e2e-role\" { capabilities = [\"read\"] }\npath \"kubernetes/creds/e2e-role\" { capabilities = [\"update\"] }"
             }' \
             "${VAULT_ADDR}/v1/sys/policies/acl/e2e-policy"
 
@@ -162,6 +162,114 @@ jobs:
             }' \
             "${VAULT_ADDR}/v1/aws/roles/e2e-role"
 
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: e2e
+
+      - name: Connect Vault to kind network
+        run: |
+          KIND_CONTAINER=$(docker ps -qf "name=e2e-control-plane")
+          VAULT_CONTAINER=$(docker ps -qf "ancestor=hashicorp/vault")
+
+          # Save Vault's container IP on its original network BEFORE connecting to kind's
+          # network — docker network connect breaks the localhost port mapping permanently,
+          # so all subsequent Vault API calls must use the container IP directly
+          VAULT_ORIGINAL_NETWORK=$(docker inspect "${VAULT_CONTAINER}" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | awk '{print $1}')
+          VAULT_IP=$(docker inspect "${VAULT_CONTAINER}" --format "{{(index .NetworkSettings.Networks \"${VAULT_ORIGINAL_NETWORK}\").IPAddress}}")
+          echo "Vault container IP: ${VAULT_IP}"
+          echo "VAULT_ADDR=http://${VAULT_IP}:8200" >> "${GITHUB_ENV}"
+
+          # Connect Vault to kind's network so it can reach the K8s API server
+          # on its original IP (which is in the TLS certificate's SANs)
+          KIND_NETWORK=$(docker inspect "${KIND_CONTAINER}" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | awk '{print $1}')
+          docker network connect "${KIND_NETWORK}" "${VAULT_CONTAINER}"
+
+          # Use kind's original IP which is covered by the API server's TLS certificate
+          K8S_IP=$(docker inspect "${KIND_CONTAINER}" --format "{{(index .NetworkSettings.Networks \"${KIND_NETWORK}\").IPAddress}}")
+          K8S_HOST="https://${K8S_IP}:6443"
+          echo "Kubernetes API server (from Vault's perspective): ${K8S_HOST}"
+
+          # Extract CA cert from kubeconfig
+          K8S_CA_B64=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+
+          echo "K8S_HOST=${K8S_HOST}" >> "${GITHUB_ENV}"
+          echo "K8S_CA_B64=${K8S_CA_B64}" >> "${GITHUB_ENV}"
+
+          # Wait for Vault to be reachable at its container IP
+          for i in $(seq 1 15); do
+            if curl -sf "http://${VAULT_IP}:8200/v1/sys/health" >/dev/null 2>&1; then
+              echo "Vault is reachable at container IP"
+              break
+            fi
+            echo "  attempt ${i}/15 — Vault not reachable yet, sleeping 2s"
+            sleep 2
+          done
+
+      - name: Configure Vault Kubernetes secrets engine
+        env:
+          VAULT_TOKEN: root
+        run: |
+          K8S_CA=$(echo "${K8S_CA_B64}" | base64 -d)
+
+          # Create a service account for Vault with token-creation permissions
+          kubectl create serviceaccount vault-auth -n default
+          kubectl create clusterrolebinding vault-auth-tokenreview \
+            --clusterrole=system:auth-delegator \
+            --serviceaccount=default:vault-auth
+          kubectl create clusterrole vault-sa-creator \
+            --verb=create,get,delete \
+            --resource=serviceaccounts,serviceaccounts/token,secrets
+          kubectl create clusterrolebinding vault-sa-creator-binding \
+            --clusterrole=vault-sa-creator \
+            --serviceaccount=default:vault-auth
+          kubectl apply -f - <<'EOF'
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: vault-role-creator
+          rules:
+            - apiGroups: ["rbac.authorization.k8s.io"]
+              resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+              verbs: ["create", "get", "delete", "bind", "escalate"]
+          EOF
+          kubectl create clusterrolebinding vault-role-creator-binding \
+            --clusterrole=vault-role-creator \
+            --serviceaccount=default:vault-auth
+          VAULT_SA_TOKEN=$(kubectl create token vault-auth --duration=1h)
+
+          # Enable Kubernetes secrets engine
+          curl -sfS \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data '{"type":"kubernetes"}' \
+            "${VAULT_ADDR}/v1/sys/mounts/kubernetes"
+
+          # Configure the engine to talk to the kind cluster
+          curl -sfS \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data "$(python3 -c "
+          import json, sys
+          print(json.dumps({
+              'kubernetes_host': '${K8S_HOST}',
+              'kubernetes_ca_cert': '''${K8S_CA}''',
+              'service_account_jwt': '${VAULT_SA_TOKEN}'
+          }))
+          ")" \
+            "${VAULT_ADDR}/v1/kubernetes/config"
+
+          # Create a role that generates service account tokens
+          curl -sfS \
+            --header "X-Vault-Token: ${VAULT_TOKEN}" \
+            --request POST \
+            --data '{
+              "allowed_kubernetes_namespaces": ["default"],
+              "token_default_ttl": "1h",
+              "generated_role_rules": "{\"rules\":[{\"apiGroups\":[\"\"],\"resources\":[\"pods\"],\"verbs\":[\"list\"]}]}"
+            }' \
+            "${VAULT_ADDR}/v1/kubernetes/roles/e2e-role"
+
       - name: Use local Dockerfile for action
         run: |
           sed -i 's|image: docker://.*|image: Dockerfile|' action.yaml
@@ -179,6 +287,8 @@ jobs:
             secret/e2e/test password | E2E_PASSWORD
           aws_secrets: |
             aws/e2e-role | E2E_AWS;
+          kube_secrets: |
+            kubernetes/e2e-role default ${{ env.K8S_HOST }} ${{ env.K8S_CA_B64 }}|e2e-context
 
       - name: Assert secrets
         run: |
@@ -235,5 +345,45 @@ jobs:
           else
             echo "PASS: E2E_AWS_SESSION_TOKEN is set (length: ${#E2E_AWS_SESSION_TOKEN})"
           fi
+
+          # Kubernetes kubeconfig assertions
+          # The action runs in a Docker container where RUNNER_TEMP is mounted at
+          # /github/runner_temp, but this step runs on the host. Translate the path.
+          if [ -n "${KUBECONFIG}" ]; then
+            KUBECONFIG="${RUNNER_TEMP}/$(basename "${KUBECONFIG}")"
+          fi
+
+          if [ -z "${KUBECONFIG}" ]; then
+            echo "FAIL: KUBECONFIG is empty"
+            FAILED=1
+          elif [ ! -f "${KUBECONFIG}" ]; then
+            echo "FAIL: KUBECONFIG file does not exist: ${KUBECONFIG}"
+            FAILED=1
+          else
+            echo "PASS: KUBECONFIG is set and file exists (${KUBECONFIG})"
+            echo "--- kubeconfig contents (tokens redacted) ---"
+            sed 's/token: .*/token: [REDACTED]/' "${KUBECONFIG}"
+            echo "---"
+
+            # Verify the kubeconfig has the expected context
+            CONTEXTS=$(kubectl config get-contexts -o name --kubeconfig="${KUBECONFIG}" 2>&1 || true)
+            if echo "${CONTEXTS}" | grep -q "e2e-context"; then
+              echo "PASS: kubeconfig contains 'e2e-context'"
+            else
+              echo "FAIL: kubeconfig does not contain 'e2e-context' (found: ${CONTEXTS})"
+              FAILED=1
+            fi
+
+            # Verify the generated credentials actually work against the kind cluster
+            if kubectl --kubeconfig="${KUBECONFIG}" --context=e2e-context get pods -n default 2>&1; then
+              echo "PASS: Kubernetes credentials are valid (can list pods)"
+            else
+              echo "FAIL: Kubernetes credentials are invalid (cannot list pods)"
+              FAILED=1
+            fi
+          fi
+
+          # Reset KUBECONFIG so the kind-action post step can clean up using its default config
+          echo "KUBECONFIG=" >> "${GITHUB_ENV}"
 
           exit "${FAILED}"

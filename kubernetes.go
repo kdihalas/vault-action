@@ -146,7 +146,7 @@ func handleKubeSecrets(ctx context.Context, client *vault.Client, token string, 
 	}
 	kubeconfigPath := filepath.Join(runnerTemp, fmt.Sprintf("vault-action-kubeconfig-%d.yaml", rand.Int63()))
 
-	if err := os.WriteFile(kubeconfigPath, kubeYAML, 0600); err != nil {
+	if err := os.WriteFile(kubeconfigPath, kubeYAML, 0644); err != nil {
 		githubactions.Fatalf("Failed to write kubeconfig to %s: %v", kubeconfigPath, err)
 	}
 
