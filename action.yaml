@@ -55,4 +55,4 @@ outputs:
 
 runs:
   using: docker
-  image: docker://ghcr.io/kdihalas/vault-action:v1.0.0 # x-release-please-version
+  image: docker://ghcr.io/kdihalas/vault-action:v2.0.0 # x-release-please-version
