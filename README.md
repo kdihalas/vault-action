@@ -118,8 +118,10 @@ jobs:
 | `role` | no | `github-action` | Vault JWT authentication role name |
 | `jwt_claim` | no | `actor` | GitHub claim to use as the JWT audience (e.g., `actor`, `ref`, `repo`) |
 | `output_token` | no | `false` | If `true`, export the Vault client token as `VAULT_TOKEN` environment variable (masked) |
+| `namespace` | no | | Set the vault namespace |
 | `secrets` | no | `empty` | Multi-line string of KV v2 secrets to fetch from Vault (see format below) |
 | `aws_secrets` | no | `empty` | Multi-line string of AWS secrets engine roles to generate dynamic credentials from (see format below) |
+| `aws_duration | no | 900s | Duration for AWS credentials (e.g. "900s", "15m"). Only applies to aws_secrets entries. |
 | `kube_secrets` | no | `empty` | Multi-line string of Kubernetes secrets engine roles to generate dynamic service account tokens from (see format below) |
 
 ## Outputs

@@ -17,6 +17,12 @@ func readInputWithFail(name string) string {
 	return value
 }
 
+// readInput is a helper function that reads an input variable and returns it (or an empty string if not provided).
+func readInput(name string) string {
+	githubactions.Infof("=> reading input: %s", name)
+	return githubactions.GetInput(name)
+}
+
 // readBoolInputWithFail is a helper function that reads an input variable, parses it as a boolean, and fails the action if it's empty or cannot be parsed.
 func readBoolInputWithFail(name string) bool {
 	githubactions.Infof("=> reading input: %s", name)

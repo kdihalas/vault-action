@@ -162,8 +162,14 @@ jobs:
             }' \
             "${VAULT_ADDR}/v1/aws/roles/e2e-role"
 
+      - name: Use local Dockerfile for action
+        run: |
+          sed -i 's|image: docker://.*|image: Dockerfile|' action.yaml
+
       - name: Run vault-action
         uses: ./
+        env:
+          ACTIONS_STEP_DEBUG: true
         with:
           url: http://vault:8200
           role: github-action

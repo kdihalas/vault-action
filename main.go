@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 
@@ -18,19 +19,26 @@ func main() {
 	vaultUrl := readInputWithFail("url")
 	vaultRole := readInputWithFail("role")
 	vaultJwtClaim := readInputWithFail("jwt_claim")
-
+	namespace := readInput("namespace")
 	// Get the ID token for the specified claim, and fail if it cannot be obtained
 	token := readTokenWithFail(ctx, vaultJwtClaim)
 
 	githubactions.Infof("=> creating vault client")
+	httpClient := &http.Client{
+		Transport: &debugTransport{rt: http.DefaultTransport},
+	}
 	client, err := vault.New(
 		vault.WithAddress(vaultUrl),
+		vault.WithHTTPClient(httpClient),
 		vault.WithRequestTimeout(30*time.Second),
 	)
 	if err != nil {
 		githubactions.Fatalf("Failed to create vault client: %v", err)
 	}
-
+	// Set the namespace on the client if provided
+	if namespace != "" {
+		client.SetNamespace(namespace)
+	}
 	// Read the Vault Output Token flag and convert it to boolean
 	vaultOutputToken := readBoolInputWithFail("output_token")
 

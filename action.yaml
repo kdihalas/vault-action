@@ -24,6 +24,10 @@ inputs:
     description: A list of secrets to read from Vault
     required: false
     default: "empty"
+  namespace:
+    description: Kubernetes namespace to use for kube_secrets entries (overridden by per-entry namespace if provided)
+    required: false
+    default: ""
   aws_secrets:
     description: >
       A list of Vault AWS secrets engine roles to generate dynamic AWS credentials from.
@@ -31,6 +35,10 @@ inputs:
       Exports <PREFIX>_ACCESS_KEY_ID, <PREFIX>_SECRET_ACCESS_KEY, and (when present) <PREFIX>_SESSION_TOKEN.
     required: false
     default: "empty"
+  aws_duration:
+    description: Duration for AWS credentials (e.g. "900s", "15m"). Only applies to aws_secrets entries.
+    required: false
+    default: "900s"
   kube_secrets:
     description: >
       A list of Vault Kubernetes secrets engine roles to generate short-lived service account tokens from.
